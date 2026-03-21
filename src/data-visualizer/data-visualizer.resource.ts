@@ -35,18 +35,58 @@ type ReportDownloadParams = {
   reportingCohort?: CQIReportingCohort;
 };
 
+type ReportLibraryCategoryRef = {
+  uuid: string;
+  display?: string;
+  name?: string;
+  description?: string;
+};
+
+type ReportLibraryItem = {
+  uuid: string;
+  display?: string;
+  name: string;
+  description?: string;
+  code?: string;
+  sourceType?: string;
+  reportDefinitionUuid?: string;
+  reportBuilderReportUuid?: string;
+  reportType?: string;
+  migrated?: boolean;
+  retired?: boolean;
+  category?: ReportLibraryCategoryRef;
+};
+
+type ReportLibraryResponse = {
+  data: {
+    results: ReportLibraryItem[];
+  };
+};
+
+type ReportCategoryItem = {
+  uuid: string;
+  display?: string;
+  name: string;
+  description?: string;
+  retired?: boolean;
+};
+
+type ReportCategoryResponse = {
+  data: {
+    results: ReportCategoryItem[];
+  };
+};
+
 export async function getReport(params: ReportRequest) {
   const abortController = new AbortController();
   let apiUrl = `${restBaseUrl}/ugandaemrreports/reportingDefinition`;
   let fixedReportUrl = `${apiUrl}?startDate=${params.startDate}&endDate=${params.endDate}&uuid=${params.uuid}`;
 
   if (params.reportType === "fixed") {
-    if (params.reportCategory.category === "cqi") {
+    if (params.reportCategory?.category === "cqi") {
       fixedReportUrl += `&cohortList=${params.reportingCohort}`;
-    } else {
-      if (params.reportCategory.renderType === "html") {
-        fixedReportUrl += `&renderType=${params.reportCategory.renderType}`;
-      }
+    } else if (params.reportCategory?.renderType === "html") {
+      fixedReportUrl += `&renderType=${params.reportCategory.renderType}`;
     }
 
     return openmrsFetch(fixedReportUrl, {
@@ -54,7 +94,7 @@ export async function getReport(params: ReportRequest) {
     });
   } else {
     const parameters =
-      params.reportIndicators.length > 0
+      params.reportIndicators && params.reportIndicators.length > 0
         ? formatReportArray(params.reportIndicators)
         : [];
 
@@ -132,6 +172,7 @@ export function useGetEncounterType() {
     isLoadingEncounterTypes: isLoading,
   };
 }
+
 export function useGetOrderTypes() {
   const apiUrl = `${restBaseUrl}/ordertype?v=custom:(uuid,display,name)`;
   const { data, error, isLoading } = useSWR<{ data: { results: any } }, Error>(
@@ -195,19 +236,50 @@ export async function getCohortCategory(type: string) {
   return data;
 }
 
-export function useGetReportingRegistry() {
-  const apiUrl = `${restBaseUrl}/systemsetting/f4544de3-001c-4cbf-b939-75a2884edafa`;
-  const { data, error, isLoading } = useSWR<{ data: { results: any } }, Error>(
+/* report library */
+
+export function useGetReportLibrary() {
+  const apiUrl = `${restBaseUrl}/reportlibrary?v=full`;
+
+  const { data, error, isLoading, mutate } = useSWR<ReportLibraryResponse, Error>(
     apiUrl,
     openmrsFetch
   );
 
   return {
-    reportingRegistry: data ? parseReportingString(data?.data) : [],
+    reportLibrary: data?.data?.results ?? [],
     isError: error,
-    isLoadingRegistry: isLoading,
+    isLoadingReportLibrary: isLoading,
+    mutate,
   };
 }
+
+export function useGetReportCategories() {
+  const apiUrl = `${restBaseUrl}/reportcategory?v=full`;
+
+  const { data, error, isLoading, mutate } = useSWR<ReportCategoryResponse, Error>(
+    apiUrl,
+    openmrsFetch
+  );
+
+  return {
+    reportCategories: data?.data?.results ?? [],
+    isError: error,
+    isLoadingReportCategories: isLoading,
+    mutate,
+  };
+}
+
+export const getReportFromRegistry = (
+  reportLibrary: ReportLibraryItem[],
+  type: string
+) => {
+  return reportLibrary?.filter(
+    (report) =>
+      report?.category?.name?.toLowerCase() === type?.toLowerCase() ||
+      report?.category?.display?.toLowerCase() === type?.toLowerCase()
+  );
+};
 
 export const createColumns = (columns: Array<string>) => {
   let dataColumn: Array<Record<string, string>> = [];
@@ -417,14 +489,4 @@ export const extractDate = (timestamp: string): string => {
 
 export const formatDate = (date: Date): string => {
   return dayjs(date).format("YYYY-MM-DD");
-};
-
-const parseReportingString = (dataResponse) => {
-  const valueString = dataResponse?.value;
-
-  return JSON.parse(valueString);
-};
-
-export const getReportFromRegistry = (registry, type) => {
-  return registry?.categories?.find((category) => category?.id === type);
 };
