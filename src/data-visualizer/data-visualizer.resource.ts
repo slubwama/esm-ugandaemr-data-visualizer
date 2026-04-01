@@ -79,7 +79,7 @@ type ReportCategoryResponse = {
 
 export async function getReport(params: ReportRequest) {
   const abortController = new AbortController();
-  let apiUrl = `${restBaseUrl}/ugandaemrreports/reportingDefinition`;
+  let apiUrl = `${restBaseUrl}/reportbuilder/reportingDefinition`;
   let fixedReportUrl = `${apiUrl}?startDate=${params.startDate}&endDate=${params.endDate}&uuid=${params.uuid}`;
 
   if (params.reportType === "fixed") {
