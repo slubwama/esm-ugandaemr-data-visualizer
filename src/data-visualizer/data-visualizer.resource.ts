@@ -77,53 +77,54 @@ type ReportCategoryResponse = {
   };
 };
 
-export async function getReport(params: ReportRequest) {
-  const abortController = new AbortController();
-  let apiUrl = `${restBaseUrl}/reportbuilder/reportingDefinition`;
-  let fixedReportUrl = `${apiUrl}?startDate=${params.startDate}&endDate=${params.endDate}&uuid=${params.uuid}`;
-
+export async function getReport(params: ReportRequest, signal?: AbortSignal) {
   if (params.reportType === "fixed") {
-    if (params.reportCategory?.category === "cqi") {
-      fixedReportUrl += `&cohortList=${params.reportingCohort}`;
-    } else if (params.reportCategory?.renderType === "html") {
-      fixedReportUrl += `&renderType=${params.reportCategory.renderType}`;
+    const query = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate,
+      uuid: params.uuid,
+    });
+
+    if (params.reportCategory?.category === "cqi" && params.reportingCohort) {
+      query.set("cohortList", params.reportingCohort);
     }
 
-    return openmrsFetch(fixedReportUrl, {
-      signal: abortController.signal,
-    });
-  } else {
-    const parameters =
-      params.reportIndicators && params.reportIndicators.length > 0
-        ? formatReportArray(params.reportIndicators)
-        : [];
+    if (params.reportCategory?.renderType) {
+      query.set("renderType", params.reportCategory.renderType);
+    }
 
-    return openmrsFetch(`${restBaseUrl}/ugandaemrreports/dataDefinition`, {
-      method: "POST",
-      signal: abortController.signal,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: {
-        cohort: {
-          type: params.type,
-          clazz: "",
-          uuid: params.uuid,
-          name: "",
-          description: "",
-          parameters: [
-            {
-              startDate: params.startDate,
-            },
-            {
-              endDate: params.endDate,
-            },
-          ],
-        },
-        columns: parameters,
-      },
-    });
+    return openmrsFetch(
+      `${restBaseUrl}/reportbuilder/reportingDefinition?${query.toString()}`,
+      { signal },
+    );
   }
+
+  const columns =
+    params.reportIndicators?.length
+      ? formatReportArray(params.reportIndicators)
+      : [];
+
+  return openmrsFetch(`${restBaseUrl}/ugandaemrreports/dataDefinition`, {
+    method: "POST",
+    signal,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: {
+      cohort: {
+        type: params.type,
+        clazz: "",
+        uuid: params.uuid,
+        name: "",
+        description: "",
+        parameters: [
+          { startDate: params.startDate },
+          { endDate: params.endDate },
+        ],
+      },
+      columns,
+    },
+  });
 }
 
 export function downloadReport(params: ReportDownloadParams) {
@@ -239,7 +240,7 @@ export async function getCohortCategory(type: string) {
 /* report library */
 
 export function useGetReportLibrary() {
-  const apiUrl = `${restBaseUrl}/reportlibrary?v=full`;
+  const apiUrl = `${restBaseUrl}/reportbuilder/reportlibrary?v=full`;
 
   const { data, error, isLoading, mutate } = useSWR<ReportLibraryResponse, Error>(
     apiUrl,
@@ -255,7 +256,7 @@ export function useGetReportLibrary() {
 }
 
 export function useGetReportCategories() {
-  const apiUrl = `${restBaseUrl}/reportcategory?v=full`;
+  const apiUrl = `${restBaseUrl}/reportbuilder/reportcategory?v=full`;
 
   const { data, error, isLoading, mutate } = useSWR<ReportCategoryResponse, Error>(
     apiUrl,
